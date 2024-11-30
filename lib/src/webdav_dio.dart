@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/io.dart';
+
 import 'adapter/adapter_stub.dart'
     if (dart.library.io) 'adapter/adapter_mobile.dart'
     if (dart.library.js) 'adapter/adapter_web.dart';
@@ -36,6 +38,13 @@ class WdDio with DioMixin implements Dio {
     this.options.validateStatus = (status) => true;
 
     httpClientAdapter = getAdapter();
+    (httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+      HttpClient client = HttpClient();
+      client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+        return true;
+      };
+      return client;
+    };
 
     // 拦截器
     if (interceptorList != null) {
