@@ -71,6 +71,10 @@ class Client {
     return WebdavXml.toFiles(path, str);
   }
 
+  AuthType? getDetectedAuthType() {
+    return this.c.detectedAuthType;
+  }
+
   /// Read a single files properties
   Future<File> readProps(String path, [CancelToken? cancelToken]) async {
     path = fixSlashes(path);
@@ -153,75 +157,75 @@ class Client {
   /// Read the bytes of a file
   /// It is best not to open debug mode, otherwise the byte data is too large and the output results in IDE cards, 😄
   Future<List<int>> read(
-    String path, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) {
+      String path, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) {
     return this.c.wdReadWithBytes(
-          this,
-          path,
-          onProgress: onProgress,
-          cancelToken: cancelToken,
-        );
+      this,
+      path,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
   }
 
   /// Read the bytes of a file with stream and write to a local file
   Future<void> read2File(
-    String path,
-    String savePath, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
+      String path,
+      String savePath, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) async {
     await this.c.wdReadWithStream(
-          this,
-          path,
-          savePath,
-          onProgress: onProgress,
-          cancelToken: cancelToken,
-        );
+      this,
+      path,
+      savePath,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
   }
 
   /// Write the bytes to remote path
   Future<void> write(
-    String path,
-    Uint8List data, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) {
+      String path,
+      Uint8List data, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) {
     return this.c.wdWriteWithBytes(
-          this,
-          path,
-          data,
-          onProgress: onProgress,
-          cancelToken: cancelToken,
-        );
+      this,
+      path,
+      data,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
   }
 
   /// Read local file stream and write to remote file
   Future<void> writeFromFile(
-    String localFilePath,
-    String path, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
+      String localFilePath,
+      String path, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) async {
     var file = io.File(localFilePath);
     return this.c.wdWriteWithStream(
-          this,
-          path,
-          file.openRead(),
-          file.lengthSync(),
-          onProgress: onProgress,
-          cancelToken: cancelToken,
-        );
+      this,
+      path,
+      file.openRead(),
+      file.lengthSync(),
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
   }
 }
 
 /// create new client
 Client newClient(String uri,
-    {String user = '', String password = '', bool debug = false}) {
+    {String user = '', String password = '', bool debug = false, AuthType? authType}) {
   return Client(
     uri: fixSlash(uri),
-    c: WdDio(debug: debug),
+    c: WdDio(debug: debug, detectedAuthType: authType),
     auth: Auth(user: user, pwd: password),
     debug: debug,
   );

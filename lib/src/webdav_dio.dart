@@ -5,8 +5,8 @@ import 'dart:typed_data';
 import 'package:dio/io.dart';
 
 import 'adapter/adapter_stub.dart'
-    if (dart.library.io) 'adapter/adapter_mobile.dart'
-    if (dart.library.js) 'adapter/adapter_web.dart';
+if (dart.library.io) 'adapter/adapter_mobile.dart'
+if (dart.library.js) 'adapter/adapter_web.dart';
 
 import 'package:dio/dio.dart';
 
@@ -25,14 +25,18 @@ class WdDio with DioMixin implements Dio {
   // debug
   final bool debug;
 
+  // 探测出来的授权类型，确保不用每次请求都要重试2次，提前记录授权类型
+  AuthType? detectedAuthType;
+
   WdDio({
     BaseOptions? options,
     this.interceptorList,
     this.debug = false,
+    this.detectedAuthType,
   }) {
     this.options = options ?? BaseOptions();
     // 禁止重定向
-    this.options.followRedirects = false;
+    this.options.followRedirects = true;
 
     // 状态码错误视为成功
     this.options.validateStatus = (status) => true;
@@ -61,17 +65,18 @@ class WdDio with DioMixin implements Dio {
 
   // methods-------------------------
   Future<Response<T>> req<T>(
-    Client self,
-    String method,
-    String path, {
-    dynamic data,
-    Function(Options)? optionsHandler,
-    ProgressCallback? onSendProgress,
-    ProgressCallback? onReceiveProgress,
-    CancelToken? cancelToken,
-  }) async {
+      Client self,
+      String method,
+      String path, {
+        dynamic data,
+        Function(Options)? optionsHandler,
+        ProgressCallback? onSendProgress,
+        ProgressCallback? onReceiveProgress,
+        CancelToken? cancelToken,
+      }) async {
     // options
     Options options = Options(method: method);
+    options.followRedirects = true;
     if (options.headers == null) {
       options.headers = {};
     }
@@ -81,6 +86,9 @@ class WdDio with DioMixin implements Dio {
       optionsHandler(options);
     }
 
+    if (detectedAuthType == AuthType.BasicAuth) {
+      self.auth = BasicAuth(user: self.auth.user, pwd: self.auth.pwd); // Basic Auth
+    }
     // authorization
     String? str = self.auth.authorize(method, path);
     if (str != null) {
@@ -109,10 +117,12 @@ class WdDio with DioMixin implements Dio {
               user: self.auth.user,
               pwd: self.auth.pwd,
               dParts: DigestParts(w3AHeader));
+          detectedAuthType = AuthType.DigestAuth;
         }
         // Basic
         else if (lowerW3AHeader?.contains('basic') == true) {
           self.auth = BasicAuth(user: self.auth.user, pwd: self.auth.pwd);
+          detectedAuthType = AuthType.BasicAuth;
         }
         // error
         else {
@@ -189,12 +199,12 @@ class WdDio with DioMixin implements Dio {
       {CancelToken? cancelToken}) async {
     var resp = await this.req(self, 'PROPFIND', path, data: dataStr,
         optionsHandler: (options) {
-      options.headers?['depth'] = depth ? '1' : '0';
-      options.headers?['content-type'] = 'application/xml;charset=UTF-8';
-      options.headers?['accept'] = 'application/xml,text/xml';
-      options.headers?['accept-charset'] = 'utf-8';
-      options.headers?['accept-encoding'] = '';
-    }, cancelToken: cancelToken);
+          options.headers?['depth'] = depth ? '1' : '0';
+          options.headers?['content-type'] = 'application/xml;charset=UTF-8';
+          options.headers?['accept'] = 'application/xml,text/xml';
+          options.headers?['accept-charset'] = 'utf-8';
+          options.headers?['accept-encoding'] = '';
+        }, cancelToken: cancelToken);
 
     if (resp.statusCode != 207) {
       throw newResponseError(resp);
@@ -251,11 +261,11 @@ class WdDio with DioMixin implements Dio {
 
   /// read a file with bytes
   Future<List<int>> wdReadWithBytes(
-    Client self,
-    String path, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
+      Client self,
+      String path, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) async {
     // fix auth error
     var pResp = await this.wdOptions(self, path, cancelToken: cancelToken);
     if (pResp.statusCode != 200) {
@@ -278,7 +288,7 @@ class WdDio with DioMixin implements Dio {
             'GET',
             resp.headers["location"]!.first,
             optionsHandler: (options) =>
-                options.responseType = ResponseType.bytes,
+            options.responseType = ResponseType.bytes,
             onReceiveProgress: onProgress,
             cancelToken: cancelToken,
           ))
@@ -292,12 +302,12 @@ class WdDio with DioMixin implements Dio {
 
   /// read a file with stream
   Future<void> wdReadWithStream(
-    Client self,
-    String path,
-    String savePath, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
+      Client self,
+      String path,
+      String savePath, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) async {
     // fix auth error
     var pResp = await this.wdOptions(self, path, cancelToken: cancelToken);
     if (pResp.statusCode != 200) {
@@ -376,7 +386,7 @@ class WdDio with DioMixin implements Dio {
     }
 
     subscription = stream.listen(
-      (data) {
+          (data) {
         subscription.pause();
         // Write file asynchronously
         asyncWrite = raf.writeFrom(data).then((_raf) {
@@ -434,7 +444,7 @@ class WdDio with DioMixin implements Dio {
 
     if (resp.requestOptions.receiveTimeout != null &&
         resp.requestOptions.receiveTimeout!
-                .compareTo(Duration(milliseconds: 0)) >
+            .compareTo(Duration(milliseconds: 0)) >
             0) {
       future = future
           .timeout(resp.requestOptions.receiveTimeout!)
@@ -445,7 +455,7 @@ class WdDio with DioMixin implements Dio {
           throw DioError(
             requestOptions: resp.requestOptions,
             error:
-                'Receiving data timeout[${resp.requestOptions.receiveTimeout}ms]',
+            'Receiving data timeout[${resp.requestOptions.receiveTimeout}ms]',
             type: DioErrorType.receiveTimeout,
           );
         } else {
@@ -458,12 +468,12 @@ class WdDio with DioMixin implements Dio {
 
   /// write a file with bytes
   Future<void> wdWriteWithBytes(
-    Client self,
-    String path,
-    Uint8List data, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
+      Client self,
+      String path,
+      Uint8List data, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) async {
     // fix auth error
     var pResp = await this.wdOptions(self, path, cancelToken: cancelToken);
     if (pResp.statusCode != 200) {
@@ -479,7 +489,7 @@ class WdDio with DioMixin implements Dio {
       path,
       data: Stream.fromIterable(data.map((e) => [e])),
       optionsHandler: (options) =>
-          options.headers?['content-length'] = data.length,
+      options.headers?['content-length'] = data.length,
       onSendProgress: onProgress,
       cancelToken: cancelToken,
     );
@@ -492,13 +502,13 @@ class WdDio with DioMixin implements Dio {
 
   /// write a file with stream
   Future<void> wdWriteWithStream(
-    Client self,
-    String path,
-    Stream<List<int>> data,
-    int length, {
-    void Function(int count, int total)? onProgress,
-    CancelToken? cancelToken,
-  }) async {
+      Client self,
+      String path,
+      Stream<List<int>> data,
+      int length, {
+        void Function(int count, int total)? onProgress,
+        CancelToken? cancelToken,
+      }) async {
     // fix auth error
     var pResp = await this.wdOptions(self, path, cancelToken: cancelToken);
     if (pResp.statusCode != 200) {
